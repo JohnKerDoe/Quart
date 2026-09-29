@@ -89,6 +89,19 @@ select{background:var(--card);border:1.5px solid var(--line);border-radius:10px;
 .empty li{margin-bottom:6px}
 
 .foot{margin-top:24px;display:flex;gap:8px;flex-wrap:wrap}
+.tabs{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid var(--ink);border-radius:12px;overflow:hidden;margin:2px 0 14px}
+.tabs button{border:0;background:transparent;padding:10px;font-weight:600;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.todo-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:4px}
+.todo-head b{font:700 24px/1 var(--num)}
+.todo{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:transparent;padding:12px 2px;cursor:pointer}
+.todo .box{flex:none;width:30px;height:30px;border:2px solid var(--ink);border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:18px}
+.todo .line{font:700 30px/1.05 var(--num);font-variant-numeric:tabular-nums;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.todo .line .port{color:var(--port)}.todo .line .stbd{color:var(--stbd)}
+.todo .sub{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.todo.done{opacity:.4}.todo.done .box{background:var(--ink);color:var(--paper)}
+.todo.late .line>span:first-child{text-decoration:underline wavy var(--port) 1.5px;text-underline-offset:5px}
+.done-sep{margin-top:18px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:10px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;z-index:5}
 .toast.show{opacity:1}
 input[type=file]{display:none}
@@ -116,7 +129,10 @@ const store = {
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
 let route = store.get('quart:route', null);
-let settings = Object.assign({ threshold: 3, lead: 5 }, store.get('quart:settings', {}));
+let settings = Object.assign({ threshold: 2, lead: 5, view: 'saisie' }, store.get('quart:settings', {}));
+if(!store.get('quart:v2', false)){ settings.threshold = 2; settings.view = 'saisie'; store.set('quart:settings', settings); store.set('quart:v2', true); }
+let done = store.get('quart:done', {});
+const doneKey = o => (route ? route.name : '') + ':' + o.t;
 
 /* ---------- Lecture du CSV VRZen ---------- */
 function num(s){ if(s == null || s.trim() === '') return null; const n = parseFloat(s.replace(',', '.')); return isNaN(n) ? null : n; }
@@ -306,7 +322,39 @@ function render(){
     <button class="btn" id="clear">Effacer la route</button>
   </section>`;
 
-  app.innerHTML = hero + settingsHtml + log + foot;
+  const tabs = `<div class="tabs" role="group" aria-label="Affichage">
+    <button data-view="saisie" aria-pressed="${settings.view === 'saisie'}">Saisie</button>
+    <button data-view="journal" aria-pressed="${settings.view === 'journal'}">Route</button></div>`;
+  if(settings.view === 'saisie'){ app.innerHTML = tabs + renderSaisie(orders, now) + settingsHtml; return; }
+  app.innerHTML = tabs + hero + settingsHtml + log + foot;
+}
+
+function renderSaisie(orders, now){
+  const list = orders.map((o, i) => ({ o, i })).filter(x => !x.o.arrival && (x.o.t > now || !done[doneKey(x.o)]));
+  // un ordre passé non coché reste visible (en retard) ; les ordres passés cochés disparaissent
+  const todo = list.filter(x => !done[doneKey(x.o)]), ok = list.filter(x => done[doneKey(x.o)]);
+  const item = ({ o, i }) => {
+    const isDone = !!done[doneKey(o)], late = !isDone && o.t <= now;
+    const tags = [];
+    if(o.manoeuvre) tags.push(`<span class="tag man">${o.manoeuvre}</span>`);
+    if(o.sailChange) tags.push(`<span class="tag">Voile : ${esc(o.sail)}</span>`);
+    if(late) tags.push(`<span class="tag man">Heure passée</span>`);
+    return `<button class="todo${isDone ? ' done' : ''}${late ? ' late' : ''}" data-done="${i}" aria-pressed="${isDone}">
+      <span class="box" aria-hidden="true">${isDone ? '✓' : ''}</span>
+      <span><span class="line"><span>${fTime(o.t)}</span><span class="${sideCls(o.twa)}">TWA ${fTwa(o.twa)}</span></span>
+      ${tags.length ? `<span class="sub">${tags.join('')}</span>` : ''}</span></button>`;
+  };
+  let html = `<section><div class="todo-head"><b>${todo.length} à saisir</b>
+    <a class="btn solid" href="${VR_INTENT}">Ouvrir VR</a></div>
+    <p class="hint">Touche une ligne quand l'ordre est entré dans la programmation VR.</p>`;
+  let lastDay = '';
+  todo.forEach(x => { const d = fDay(x.o.t); if(d !== lastDay){ html += `<div class="day">${d}</div>`; lastDay = d; } html += item(x); });
+  if(!todo.length) html += `<p class="hint" style="margin-top:14px">Tout est saisi. Reviens quand tu importes un nouveau routage.</p>`;
+  if(ok.length){
+    html += `<div class="day done-sep">Déjà saisis (${ok.length})</div>` + ok.map(item).join('');
+    html += `<div class="foot"><button class="btn" id="undoAll">Tout décocher</button></div>`;
+  }
+  return html + '</section>';
 }
 
 /* ---------- Interactions ---------- */
@@ -314,6 +362,10 @@ function toast(msg){ const t = document.getElementById('toast'); t.textContent =
 
 app.addEventListener('click', async e => {
   const el = e.target.closest('button'); if(!el) return;
+  if(el.dataset.view){ settings.view = el.dataset.view; store.set('quart:settings', settings); render(); return; }
+  if(el.dataset.done != null){ const o = currentOrders()[+el.dataset.done], k = doneKey(o);
+    if(done[k]) delete done[k]; else done[k] = 1; store.set('quart:done', done); render(); return; }
+  if(el.id === 'undoAll'){ Object.keys(done).filter(k => k.startsWith(route.name + ':')).forEach(k => delete done[k]); store.set('quart:done', done); render(); return; }
   if(el.dataset.th != null){ settings.threshold = +el.dataset.th; store.set('quart:settings', settings); render(); }
   else if(el.dataset.copy != null){
     const o = currentOrders()[+el.dataset.copy];
