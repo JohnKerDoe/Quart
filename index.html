@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16303F">
+<title>Quart</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E9EEF0; --card:#F7FAFB; --ink:#16303F; --muted:#5E7482; --line:#C9D4DA;
+  --port:#C8363A; --stbd:#1F8A5B; --signal:#E3A21A; --signal-ink:#5A3E00;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --num:"Barlow Condensed","Roboto Condensed","Arial Narrow",system-ui,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{ --paper:#0E1A22; --card:#13232E; --ink:#E3ECF0; --muted:#8FA3AF; --line:#25394A;
+         --port:#F0666A; --stbd:#3FC08A; --signal:#F2B63A; --signal-ink:#2A1C00; }
+}
+*,*::before,*::after{box-sizing:inherit}
+html{background:var(--paper)}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.45 var(--body);-webkit-tap-highlight-color:transparent}
+button,select,input{font:inherit;color:inherit}
+main{max-width:560px;margin:0 auto;padding:0 16px 40px}
+
+/* Barre du haut */
+.top{display:flex;align-items:center;gap:12px;padding:14px 0 10px}
+.top h1{font:700 26px/1 var(--num);letter-spacing:.01em;margin:0;flex:1}
+.top h1 small{display:block;font:500 14px/1.3 var(--body);color:var(--muted);letter-spacing:0;margin-top:3px}
+.btn{border:1.5px solid var(--ink);background:transparent;border-radius:10px;padding:9px 14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink)}
+.btn.solid{background:var(--ink);color:var(--paper)}
+.btn:focus-visible,.chip:focus-visible,select:focus-visible{outline:3px solid var(--signal);outline-offset:2px}
+.btn:active{transform:translateY(1px)}
+
+/* Instrument : l'ordre en cours et le prochain */
+.instrument{background:var(--ink);color:var(--paper);border-radius:22px;padding:18px 20px 20px;margin-top:4px}
+.now{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 10px;padding-bottom:12px;border-bottom:1px solid rgba(233,238,240,.18);font-size:15px}
+.now b{font:700 20px/1.1 var(--num);text-align:right}
+.next-label{margin-top:14px;font-size:15px;opacity:.8}
+.countdown{font:600 34px/1.1 var(--num);font-variant-numeric:tabular-nums}
+.twa-big{font:800 104px/0.95 var(--num);font-variant-numeric:tabular-nums;margin:6px 0 2px;letter-spacing:-.01em}
+.twa-big .unit{font-size:44px;font-weight:600;opacity:.75}
+.twa-big.port{color:#FF8A8D}.twa-big.stbd{color:#5FD6A0}
+.side{font-weight:600;font-size:15px}
+.facts{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:15px}
+.facts span b{font:600 20px/1 var(--num);display:block}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.instrument .btn{border-color:var(--paper);color:var(--paper)}
+.instrument .btn.solid{background:var(--paper);color:var(--ink)}
+.flag{display:inline-block;margin-top:10px;background:var(--signal);color:var(--signal-ink);border-radius:8px;padding:4px 10px;font-weight:600;font-size:14px}
+
+/* Réglages */
+.settings{margin:18px 0 6px;display:grid;gap:12px}
+.setting{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.setting label{font-weight:500}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:5px 12px;cursor:pointer;font-weight:600;font-size:14px}
+.chip[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+select{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:6px 10px}
+.hint{color:var(--muted);font-size:14px;margin:0}
+
+/* Journal des ordres */
+.log{margin-top:18px}
+.day{position:sticky;top:0;background:var(--paper);padding:10px 0 6px;font:600 17px/1 var(--num);color:var(--muted);z-index:1;border-bottom:1px solid var(--line)}
+.row{display:grid;grid-template-columns:58px 1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.row.past{opacity:.42}
+.row.next{background:linear-gradient(90deg,rgba(227,162,26,.18),transparent 70%);margin:0 -16px;padding-left:16px;padding-right:16px}
+.row .t{font:600 20px/1 var(--num);font-variant-numeric:tabular-nums}
+.row .twa{font:700 26px/1 var(--num);font-variant-numeric:tabular-nums}
+.row .twa.port{color:var(--port)}.row .twa.stbd{color:var(--stbd)}
+.row .meta{font-size:14px;color:var(--muted);display:block;margin-top:2px}
+.row .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.tag{font-size:13px;font-weight:600;border-radius:6px;padding:2px 7px;background:var(--signal);color:var(--signal-ink)}
+.tag.man{background:transparent;border:1.5px solid var(--ink);color:var(--ink)}
+.row .mini{display:flex;gap:4px}
+.icon-btn{border:1.5px solid var(--line);background:var(--card);border-radius:9px;width:40px;height:40px;display:grid;place-items:center;cursor:pointer;font-size:18px;text-decoration:none;color:var(--ink)}
+.arrival .twa{color:var(--ink)}
+
+/* Écran vide */
+.empty{text-align:left;padding:28px 0}
+.empty h2{font:700 30px/1.1 var(--num);margin:0 0 10px}
+.empty ol{padding-left:20px;margin:0 0 18px}
+.empty li{margin-bottom:6px}
+
+.foot{margin-top:24px;display:flex;gap:8px;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:10px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;z-index:5}
+.toast.show{opacity:1}
+input[type=file]{display:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <h1>Quart<small id="routeName">Ordres VRZen pour Virtual Regatta</small></h1>
+    <label class="btn" for="file">Importer CSV</label>
+    <input type="file" id="file" accept=".csv,text/csv,text/plain">
+  </header>
+
+  <section id="app"></section>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const VR_INTENT = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.virtualregatta;S.browser_fallback_url=' +
+  encodeURIComponent('https://play.google.com/store/apps/details?id=com.virtualregatta') + ';end';
+const THRESHOLDS = [0, 2, 3, 5, 10];
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+let route = store.get('quart:route', null);
+let settings = Object.assign({ threshold: 3, lead: 5 }, store.get('quart:settings', {}));
+
+/* ---------- Lecture du CSV VRZen ---------- */
+function num(s){ if(s == null || s.trim() === '') return null; const n = parseFloat(s.replace(',', '.')); return isNaN(n) ? null : n; }
+function parseUTC(s){ const m = s && s.match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/); return m ? Date.UTC(+m[1], m[2]-1, +m[3], +m[4], +m[5]) : null; }
+
+function parseVRZen(text, fileName){
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim());
+  if(lines.length < 2) throw new Error('Le fichier est vide.');
+  const head = lines[0].split(';').map(h => h.trim());
+  const col = name => head.findIndex(h => h.toLowerCase().startsWith(name.toLowerCase()));
+  const c = { utc: col('DateHeure(UTC)'), hdg: col('HDG'), twa: col('TWA'), mode: col('MODE'), spd: col('Speed'),
+              tws: col('TWS'), dtf: col('DTF'), sail: col('Voile'), sailDur: col('DureeChangementVoile'),
+              tackDur: col('DureeChangementAmure'), energy: col('EnergieFinIteration') };
+  if(c.utc < 0 || c.twa < 0 || c.sail < 0) throw new Error("Ce fichier ne ressemble pas à un export CSV de VRZen (colonnes DateHeure(UTC), TWA ou Voile absentes).");
+  const rows = [];
+  for(const line of lines.slice(1)){
+    const f = line.split(';');
+    const t = parseUTC(f[c.utc]); if(t == null) continue;
+    rows.push({ t, hdg: num(f[c.hdg]), twa: num(f[c.twa]), mode: (f[c.mode]||'').trim(), spd: num(f[c.spd]),
+      tws: num(f[c.tws]), dtf: num(f[c.dtf]), sail: (f[c.sail]||'').trim(),
+      sailDur: num(f[c.sailDur]), tackDur: num(f[c.tackDur]), energy: num(f[c.energy]) });
+  }
+  if(!rows.length) throw new Error('Aucune ligne de route lisible dans ce fichier.');
+  const m = (fileName||'').match(/VRZEN_([^_]+)_/i);
+  return { name: m ? m[1] : (fileName||'Route').replace(/\.csv$/i,''), rows, importedAt: Date.now() };
+}
+
+/* ---------- Transformation en ordres ---------- */
+function buildOrders(rows, threshold){
+  const orders = []; let cur = null;
+  rows.forEach((r, i) => {
+    if(r.twa == null){ // arrivée
+      if(i === rows.length - 1) orders.push({ t: r.t, arrival: true, dtf: r.dtf });
+      return;
+    }
+    const sailChange = cur && r.sail && r.sail !== cur.sail;
+    const sideChange = cur && Math.sign(r.twa) !== Math.sign(cur.twa);
+    const delta = cur ? Math.abs(r.twa - cur.twa) : Infinity;
+    const keep = !cur || sailChange || sideChange || (threshold === 0 ? delta > 0 : delta >= threshold);
+    if(!keep) return;
+    const o = { ...r, sailChange, first: !cur };
+    if(sideChange) o.manoeuvre = Math.abs(r.twa) > 90 ? 'Empannage' : 'Virement';
+    orders.push(o); cur = o;
+  });
+  return orders;
+}
+const isKey = o => o.first || o.sailChange || o.manoeuvre || o.arrival;
+
+/* ---------- Formatage ---------- */
+const fTime = t => new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const fDay = t => { const s = new Date(t).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }); return s[0].toUpperCase() + s.slice(1); };
+const fTwa = v => (v > 0 ? '+' : '') + Math.round(v);
+const sideCls = v => v < 0 ? 'port' : 'stbd';
+const sideTxt = v => v < 0 ? 'Bâbord amures' : 'Tribord amures';
+const fDur = s => { const m = Math.floor(s/60), r = Math.round(s%60); return m ? `${m} min ${String(r).padStart(2,'0')}` : `${r} s`; };
+function fCountdown(ms){
+  if(ms <= 0) return 'Maintenant';
+  const s = Math.floor(ms/1000), d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60), sec = s%60;
+  if(d) return `Dans ${d} j ${h} h`;
+  if(h) return `Dans ${h} h ${String(m).padStart(2,'0')}`;
+  return `Dans ${m} min ${String(sec).padStart(2,'0')}`;
+}
+const orderText = o => o.arrival ? 'Arrivée' : `${fTime(o.t)} TWA ${fTwa(o.twa)} (${o.sail})`;
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+
+/* ---------- Agenda ---------- */
+const icsDate = t => new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+function eventTitle(o){
+  if(o.arrival) return 'VR : arrivée';
+  const parts = [`VR ${fTime(o.t)} : TWA ${fTwa(o.twa)}`];
+  if(o.manoeuvre) parts.push(o.manoeuvre);
+  if(o.sailChange) parts.push(o.sail);
+  return parts.join(' · ');
+}
+function eventDetails(o){
+  if(o.arrival) return `Arrivée prévue par VRZen (${route.name}).`;
+  return `Ordre VRZen pour ${fTime(o.t)} : TWA ${fTwa(o.twa)} (${sideTxt(o.twa).toLowerCase()}), cap ${o.hdg}°, voile ${o.sail}.`;
+}
+function gcalLink(o){
+  const start = o.t - settings.lead * 60000;
+  const p = new URLSearchParams({ action: 'TEMPLATE', text: eventTitle(o), details: eventDetails(o),
+    dates: `${icsDate(start)}/${icsDate(start + 5*60000)}` });
+  return 'https://calendar.google.com/calendar/render?' + p.toString();
+}
+function exportIcs(all){
+  const list = currentOrders().filter(o => o.t > Date.now() && (all || isKey(o)));
+  if(!list.length){ toast('Aucun ordre à venir à exporter.'); return; }
+  const now = icsDate(Date.now());
+  const ev = list.map((o, i) => {
+    const start = o.t - settings.lead * 60000;
+    return ['BEGIN:VEVENT', `UID:quart-${route.name}-${o.t}-${i}@johnkerdoe.github.io`, `DTSTAMP:${now}`,
+      `DTSTART:${icsDate(start)}`, `DTEND:${icsDate(start + 5*60000)}`,
+      `SUMMARY:${eventTitle(o).replace(/[,;]/g, m => '\\' + m)}`, `DESCRIPTION:${eventDetails(o).replace(/[,;]/g, m => '\\' + m)}`,
+      'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${eventTitle(o).replace(/[,;]/g, m => '\\' + m)}`, 'TRIGGER:PT0M', 'END:VALARM',
+      'END:VEVENT'].join('\r\n');
+  });
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Quart//VRZen//FR', 'CALSCALE:GREGORIAN', ...ev, 'END:VCALENDAR'].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
+  a.download = `quart-${route.name}.ics`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast(`${list.length} rappel${list.length > 1 ? 's' : ''} exporté${list.length > 1 ? 's' : ''}`);
+}
+
+/* ---------- Affichage ---------- */
+const app = document.getElementById('app');
+function currentOrders(){ return route ? buildOrders(route.rows, settings.threshold) : []; }
+
+function render(){
+  document.getElementById('routeName').textContent = route ? `${route.name} · importée le ${new Date(route.importedAt).toLocaleDateString('fr-FR')} à ${fTime(route.importedAt)}` : 'Ordres VRZen pour Virtual Regatta';
+  if(!route){
+    app.innerHTML = `<div class="empty">
+      <h2>Aucune route chargée</h2>
+      <ol>
+        <li>Calcule ta route sur VRZen, onglet Route.</li>
+        <li>Touche <b>CSV</b> pour la télécharger.</li>
+        <li>Touche <b>Importer CSV</b> ici, ou partage le fichier vers Quart depuis tes téléchargements.</li>
+      </ol>
+      <label class="btn solid" for="file">Importer un CSV VRZen</label>
+    </div>`;
+    return;
+  }
+  const orders = currentOrders(), now = Date.now();
+  const nextIdx = orders.findIndex(o => o.t > now);
+  const cur = [...orders].reverse().find(o => o.t <= now && !o.arrival);
+  const next = nextIdx >= 0 ? orders[nextIdx] : null;
+  const sailOrders = orders.filter(o => !o.arrival).length;
+
+  let hero = `<section class="instrument" aria-live="polite">`;
+  hero += `<div class="now"><span>Réglage actuel</span>${cur ? `<b>TWA ${fTwa(cur.twa)} · ${esc(cur.sail)}</b>` : '<span>Départ à venir</span>'}</div>`;
+  if(next && !next.arrival){
+    hero += `<div class="next-label">Prochain ordre à ${fTime(next.t)}</div>
+      <div class="countdown" id="cd">${fCountdown(next.t - now)}</div>
+      <div class="twa-big ${sideCls(next.twa)}">${fTwa(next.twa)}<span class="unit">°</span></div>
+      <div class="side">${sideTxt(next.twa)}</div>
+      <div class="facts"><span><b>${next.hdg}°</b>Cap</span><span><b>${esc(next.sail)}</b>Voile</span><span><b>${next.spd?.toFixed(1).replace('.', ',')} kt</b>Vitesse</span><span><b>${next.tws?.toFixed(1).replace('.', ',')} kt</b>Vent</span></div>
+      ${next.manoeuvre ? `<div class="flag">${next.manoeuvre}${next.tackDur ? ' · ' + fDur(next.tackDur) : ''}</div> ` : ''}
+      ${next.sailChange ? `<div class="flag">Changer pour ${esc(next.sail)}${next.sailDur ? ' · ' + fDur(next.sailDur) : ''}</div>` : ''}
+      <div class="actions">
+        <a class="btn solid" href="${VR_INTENT}">Ouvrir Virtual Regatta</a>
+        <button class="btn" data-copy="${nextIdx}">Copier la TWA</button>
+        <a class="btn" href="${gcalLink(next)}" target="_blank" rel="noopener">Rappel agenda</a>
+      </div>`;
+  } else if(next && next.arrival){
+    hero += `<div class="next-label">Arrivée prévue à ${fTime(next.t)}</div><div class="countdown" id="cd">${fCountdown(next.t - now)}</div>
+      <div class="actions"><a class="btn solid" href="${VR_INTENT}">Ouvrir Virtual Regatta</a></div>`;
+  } else {
+    hero += `<div class="next-label">Cette route est terminée.</div><div class="countdown">Importe un nouveau routage VRZen</div>
+      <div class="actions"><label class="btn solid" for="file">Importer CSV</label></div>`;
+  }
+  hero += `</section>`;
+
+  const settingsHtml = `<section class="settings">
+    <div class="setting"><label>Ignorer les écarts de TWA de moins de</label>
+      <div class="chips">${THRESHOLDS.map(v => `<button class="chip" data-th="${v}" aria-pressed="${settings.threshold === v}">${v ? v + '°' : 'Aucun'}</button>`).join('')}</div></div>
+    <p class="hint">${sailOrders} ordres sur ${route.rows.length} étapes. Les changements de voile, virements et empannages sont toujours gardés.</p>
+    <div class="setting"><label for="lead">Rappel avant chaque ordre</label>
+      <select id="lead">${[0, 2, 5, 10, 15].map(v => `<option value="${v}" ${settings.lead === v ? 'selected' : ''}>${v ? v + ' min' : 'À l’heure pile'}</option>`).join('')}</select></div>
+  </section>`;
+
+  let log = '<section class="log" aria-label="Ordres de la route">', lastDay = '';
+  orders.forEach((o, i) => {
+    const day = fDay(o.t);
+    if(day !== lastDay){ log += `<div class="day">${day}</div>`; lastDay = day; }
+    const cls = ['row', o.t <= now ? 'past' : '', i === nextIdx ? 'next' : '', o.arrival ? 'arrival' : ''].join(' ');
+    if(o.arrival){
+      log += `<div class="${cls}"><span class="t">${fTime(o.t)}</span><div><div class="twa">Arrivée</div></div><span></span></div>`;
+      return;
+    }
+    const tags = [];
+    if(o.manoeuvre) tags.push(`<span class="tag man">${o.manoeuvre}</span>`);
+    if(o.sailChange) tags.push(`<span class="tag">Voile : ${esc(o.sail)}</span>`);
+    log += `<div class="${cls}">
+      <span class="t">${fTime(o.t)}</span>
+      <div><span class="twa ${sideCls(o.twa)}">${fTwa(o.twa)}°</span> <span class="meta">cap ${o.hdg}° · ${esc(o.sail)}</span>
+        ${tags.length ? `<div class="tags">${tags.join('')}</div>` : ''}</div>
+      <div class="mini">
+        <button class="icon-btn" data-copy="${i}" aria-label="Copier l'ordre de ${fTime(o.t)}">⧉</button>
+        <a class="icon-btn" href="${gcalLink(o)}" target="_blank" rel="noopener" aria-label="Ajouter un rappel pour ${fTime(o.t)}">⏰</a>
+      </div></div>`;
+  });
+  log += '</section>';
+
+  const foot = `<section class="foot">
+    <button class="btn" id="icsKey">Rappels des manœuvres clés (.ics)</button>
+    <button class="btn" id="icsAll">Tous les rappels (.ics)</button>
+    <button class="btn" id="clear">Effacer la route</button>
+  </section>`;
+
+  app.innerHTML = hero + settingsHtml + log + foot;
+}
+
+/* ---------- Interactions ---------- */
+function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2200); }
+
+app.addEventListener('click', async e => {
+  const el = e.target.closest('button'); if(!el) return;
+  if(el.dataset.th != null){ settings.threshold = +el.dataset.th; store.set('quart:settings', settings); render(); }
+  else if(el.dataset.copy != null){
+    const o = currentOrders()[+el.dataset.copy];
+    const txt = el.closest('.instrument') ? fTwa(o.twa) : orderText(o);
+    try{ await navigator.clipboard.writeText(txt); toast(`Copié : ${txt}`); }catch(err){ toast(txt); }
+  }
+  else if(el.id === 'icsKey') exportIcs(false);
+  else if(el.id === 'icsAll') exportIcs(true);
+  else if(el.id === 'clear'){ if(confirm('Effacer la route chargée ?')){ route = null; try{ localStorage.removeItem('quart:route'); }catch(err){} render(); } }
+});
+app.addEventListener('change', e => {
+  if(e.target.id === 'lead'){ settings.lead = +e.target.value; store.set('quart:settings', settings); render(); }
+});
+
+function loadText(text, name){
+  try{ route = parseVRZen(text, name); store.set('quart:route', route); render(); toast(`Route ${route.name} chargée`); window.scrollTo(0, 0); }
+  catch(err){ toast(err.message); }
+}
+document.getElementById('file').addEventListener('change', async e => {
+  const f = e.target.files[0]; if(!f) return;
+  loadText(await f.text(), f.name); e.target.value = '';
+});
+
+// Fichier reçu via le menu Partager d'Android
+(async () => {
+  if(!new URLSearchParams(location.search).has('shared') || !('caches' in window)) return;
+  try{
+    const cache = await caches.open('quart-share');
+    const res = await cache.match(new URL('shared.csv', location.href).href);
+    if(res){ loadText(await res.text(), decodeURIComponent(res.headers.get('X-Name') || 'route.csv')); await cache.delete(new URL('shared.csv', location.href).href); }
+  }catch(err){}
+  history.replaceState(null, '', location.pathname);
+})();
+
+// Compte à rebours : mise à jour chaque seconde, rafraîchissement complet au passage d'un ordre
+let lastNext = null;
+setInterval(() => {
+  if(!route) return;
+  const now = Date.now(), next = currentOrders().find(o => o.t > now);
+  if((next && next.t) !== lastNext){ lastNext = next && next.t; render(); return; }
+  const cd = document.getElementById('cd'); if(cd && next) cd.textContent = fCountdown(next.t - now);
+}, 1000);
+
+render();
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
