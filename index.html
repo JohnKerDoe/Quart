@@ -283,7 +283,7 @@ function render(){
       <div class="countdown" id="cd">${fCountdown(next.t - now)}</div>
       <div class="twa-big ${sideCls(next.twa)}">${fTwa(next.twa)}<span class="unit">°</span></div>
       <div class="side">${sideTxt(next.twa)}</div>
-      <div class="facts"><span><b>${next.hdg}°</b>Cap</span><span><b>${esc(next.sail)}</b>Voile</span><span><b>${next.spd?.toFixed(1).replace('.', ',')} kt</b>Vitesse</span><span><b>${next.tws?.toFixed(1).replace('.', ',')} kt</b>Vent</span></div>
+      <div class="facts"><span><b>${next.hdg}°</b>Cap</span><span><b>${esc(next.sail)}</b>Voile</span><span><b>${next.spd != null ? (next.spd * 1.852).toFixed(1).replace('.', ',') : '–'} km/h</b>Vitesse</span><span><b>${next.tws != null ? (next.tws * 1.852).toFixed(1).replace('.', ',') : '–'} km/h</b>Vent</span></div>
       ${next.manoeuvre ? `<div class="flag">${next.manoeuvre}${next.tackDur ? ' · ' + fDur(next.tackDur) : ''}</div> ` : ''}
       ${next.sailChange ? `<div class="flag">Changer pour ${esc(next.sail)}${next.sailDur ? ' · ' + fDur(next.sailDur) : ''}</div>` : ''}
       <div class="actions">
