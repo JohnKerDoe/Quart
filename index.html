@@ -407,7 +407,7 @@ function planSession(now, hours, autoSails){
   }
   return { start, end, options, steps: n };
 }
-const fNm = v => v < 0.1 ? '< 0,1 nm' : v.toFixed(1).replace('.', ',') + ' nm';
+const fNm = v => { const km = v * 1.852; return km < 0.1 ? '< 0,1 km' : km.toFixed(1).replace('.', ',') + ' km'; };
 const gapCls = v => v < 0.5 ? 'g1' : v < 1.5 ? 'g2' : 'g3';
 function alarmIntent(t, label){
   const d = new Date(t);
