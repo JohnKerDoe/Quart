@@ -89,7 +89,7 @@ select{background:var(--card);border:1.5px solid var(--line);border-radius:10px;
 .empty li{margin-bottom:6px}
 
 .foot{margin-top:24px;display:flex;gap:8px;flex-wrap:wrap}
-.tabs{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid var(--ink);border-radius:12px;overflow:hidden;margin:2px 0 14px}
+.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;border:1.5px solid var(--ink);border-radius:12px;overflow:hidden;margin:2px 0 14px}
 .tabs button{border:0;background:transparent;padding:10px;font-weight:600;cursor:pointer}
 .tabs button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .todo-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:4px}
@@ -102,6 +102,19 @@ select{background:var(--card);border:1.5px solid var(--line);border-radius:10px;
 .todo.done{opacity:.4}.todo.done .box{background:var(--ink);color:var(--paper)}
 .todo.late .line>span:first-child{text-decoration:underline wavy var(--port) 1.5px;text-underline-offset:5px}
 .done-sep{margin-top:18px}
+.sess h2{font:700 24px/1.1 var(--num);margin:4px 0 10px}
+.opt{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;border:1.5px solid var(--line);background:var(--card);border-radius:12px;padding:10px 14px;margin-bottom:8px;cursor:pointer;text-align:left}
+.opt b{font:700 22px/1 var(--num)}
+.opt .gap{font-weight:600}
+.opt[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
+.gap.g1{color:var(--stbd)}.gap.g2{color:var(--signal-ink);background:var(--signal);border-radius:6px;padding:1px 6px}.gap.g3{color:var(--port)}
+.next-sess{background:var(--ink);color:var(--paper);border-radius:18px;padding:16px 18px;margin-top:18px}
+.next-sess b{display:block;font:700 34px/1.05 var(--num)}
+.next-sess .actions{margin-top:12px}
+.next-sess .btn{border-color:var(--paper);color:var(--paper)}
+.next-sess .btn.solid{background:var(--paper);color:var(--ink)}
+.toggle{display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer}
+.toggle input{width:22px;height:22px;accent-color:var(--ink)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:10px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;z-index:5}
 .toast.show{opacity:1}
 input[type=file]{display:none}
@@ -129,9 +142,11 @@ const store = {
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
 let route = store.get('quart:route', null);
-let settings = Object.assign({ threshold: 2, lead: 5, view: 'saisie' }, store.get('quart:settings', {}));
+let settings = Object.assign({ threshold: 2, lead: 5, view: 'session', away: 6, autoSails: true }, store.get('quart:settings', {}));
 if(!store.get('quart:v2', false)){ settings.threshold = 2; settings.view = 'saisie'; store.set('quart:settings', settings); store.set('quart:v2', true); }
+if(!store.get('quart:v3', false)){ settings.view = 'session'; settings.away = settings.away || 6; settings.autoSails = true; store.set('quart:settings', settings); store.set('quart:v3', true); }
 let done = store.get('quart:done', {});
+let sessK = null;
 const doneKey = o => (route ? route.name : '') + ':' + o.t;
 
 /* ---------- Lecture du CSV VRZen ---------- */
@@ -323,10 +338,118 @@ function render(){
   </section>`;
 
   const tabs = `<div class="tabs" role="group" aria-label="Affichage">
+    <button data-view="session" aria-pressed="${settings.view === 'session'}">Session</button>
     <button data-view="saisie" aria-pressed="${settings.view === 'saisie'}">Saisie</button>
     <button data-view="journal" aria-pressed="${settings.view === 'journal'}">Route</button></div>`;
+  if(settings.view === 'session'){ app.innerHTML = tabs + renderSession(now); return; }
   if(settings.view === 'saisie'){ app.innerHTML = tabs + renderSaisie(orders, now) + settingsHtml; return; }
   app.innerHTML = tabs + hero + settingsHtml + log + foot;
+}
+
+/* ---------- Session de programmation ---------- */
+const AWAY = [2, 4, 6, 8, 12];
+const D2R = Math.PI / 180;
+function planSession(now, hours, autoSails){
+  const rows = route.rows.filter(r => r.twa != null && r.hdg != null);
+  if(!rows.length) return null;
+  const start = Math.max(now, rows[0].t), end = start + hours * 3600000;
+  let i0 = 0; rows.forEach((r, i) => { if(r.t <= start) i0 = i; });
+  const items = [];
+  for(let i = i0; i < rows.length && rows[i].t < end; i++){
+    const r = rows[i], nxt = rows[i+1] ? rows[i+1].t : end;
+    const ts = Math.max(r.t, start), te = Math.min(nxt, end);
+    if(te <= ts) continue;
+    const dt = (te - ts) / 3600000, twd = ((r.hdg + r.twa) % 360 + 360) % 360;
+    items.push({ ...r, ts, te, dt, twd, w: Math.max(r.spd || 0, 0.1) * dt });
+  }
+  const n = items.length; if(!n) return null;
+  // ruptures obligatoires : changement d'amure, et de voile si voiles manuelles
+  const forced = items.map((it, k) => k > 0 && (Math.sign(it.twa) !== Math.sign(items[k-1].twa) || (!autoSails && it.sail !== items[k-1].sail)));
+  const P = [0], S0 = [0], S1 = [0], S2 = [0];
+  items.forEach((it, k) => { P.push(P[k] + (forced[k] ? 1 : 0)); S0.push(S0[k] + it.w); S1.push(S1[k] + it.w * it.twa); S2.push(S2[k] + it.w * it.twa * it.twa); });
+  const ok = (a, b) => P[b] - P[a + 1] === 0;            // segment [a,b) sans rupture interne
+  const cost = (a, b) => { const w = S0[b] - S0[a], m = (S1[b] - S1[a]) / w; return (S2[b] - S2[a]) - w * m * m; };
+  const minK = 1 + forced.filter(Boolean).length, maxK = Math.min(n, 12);
+  // programmation dynamique : meilleur découpage en K segments
+  const INF = 1e18, dp = [], from = [];
+  for(let k = 0; k <= maxK; k++){ dp.push(new Array(n + 1).fill(INF)); from.push(new Array(n + 1).fill(-1)); }
+  dp[0][0] = 0;
+  for(let k = 1; k <= maxK; k++) for(let b = 1; b <= n; b++) for(let a = k - 1; a < b; a++){
+    if(dp[k-1][a] >= INF || !ok(a, b)) continue;
+    const c = dp[k-1][a] + cost(a, b); if(c < dp[k][b]){ dp[k][b] = c; from[k][b] = a; }
+  }
+  // simulation : trace du bateau avec les ordres simplifiés vs route VRZen
+  function simulate(twaAt){
+    let rx = 0, ry = 0, sx = 0, sy = 0, worst = 0;
+    items.forEach((it, k) => {
+      const d = it.w, h1 = it.hdg * D2R, h2 = (it.twd - twaAt[k]) * D2R;
+      rx += Math.sin(h1) * d; ry += Math.cos(h1) * d; sx += Math.sin(h2) * d; sy += Math.cos(h2) * d;
+      worst = Math.max(worst, Math.hypot(rx - sx, ry - sy));
+    });
+    return worst;
+  }
+  const options = [];
+  for(let K = minK; K <= maxK; K++){
+    if(dp[K][n] >= INF) continue;
+    const cuts = []; let b = n;
+    for(let k = K; k > 0; k--){ const a = from[k][b]; cuts.unshift([a, b]); b = a; }
+    const twaAt = new Array(n), orders = [];
+    cuts.forEach(([a, b], j) => {
+      const t = Math.round((S1[b] - S1[a]) / (S0[b] - S0[a]));
+      for(let k = a; k < b; k++) twaAt[k] = t;
+      const prev = orders[orders.length - 1];
+      orders.push({ t: items[a].ts, twa: t, hdg: Math.round(((items[a].twd - t) % 360 + 360) % 360), sail: items[a].sail,
+        manoeuvre: prev && Math.sign(prev.twa) !== Math.sign(t) ? (Math.abs(t) > 90 ? 'Empannage' : 'Virement') : null,
+        sailChange: prev && prev.sail !== items[a].sail, now: j === 0 });
+    });
+    options.push({ K, orders, gap: simulate(twaAt) });
+    if(options.length && options[options.length - 1].gap < 0.05) break;   // inutile d'aller plus loin
+  }
+  return { start, end, options, steps: n };
+}
+const fNm = v => v < 0.1 ? '< 0,1 nm' : v.toFixed(1).replace('.', ',') + ' nm';
+const gapCls = v => v < 0.5 ? 'g1' : v < 1.5 ? 'g2' : 'g3';
+function alarmIntent(t, label){
+  const d = new Date(t);
+  return 'intent:#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=' + d.getHours() +
+    ';i.android.intent.extra.alarm.MINUTES=' + d.getMinutes() + ';S.android.intent.extra.alarm.MESSAGE=' + encodeURIComponent(label) + ';end';
+}
+function sessCal(t){
+  const p = new URLSearchParams({ action: 'TEMPLATE', text: 'VR : prochaine session', details: `Reprogrammer Virtual Regatta (${route.name}). Pense à recharger un routage VRZen si la météo a changé.`,
+    dates: `${icsDate(t)}/${icsDate(t + 10*60000)}` });
+  return 'https://calendar.google.com/calendar/render?' + p.toString();
+}
+function renderSession(now){
+  const plan = planSession(now, settings.away, settings.autoSails);
+  let html = `<section class="sess"><h2>Je reviens dans…</h2>
+    <div class="chips">${AWAY.map(h => `<button class="chip" data-away="${h}" aria-pressed="${settings.away === h}">${h} h</button>`).join('')}</div>
+    <label class="toggle" style="margin:12px 0 4px"><input type="checkbox" id="autoSails" ${settings.autoSails ? 'checked' : ''}> Voiles automatiques (pack)</label>`;
+  if(!plan || !plan.options.length){ return html + `<p class="hint" style="margin-top:14px">Plus d'ordres à programmer sur cette route.</p></section>`; }
+  const fit = plan.options.find(o => o.gap < 0.5) || plan.options[plan.options.length - 1];
+  const chosen = plan.options.find(o => o.K === sessK) || fit;
+  html += `<h2 style="margin-top:18px">Combien d'ordres ?</h2>
+    <p class="hint" style="margin-bottom:10px">Écart maximal estimé avec la route VRZen (${plan.steps} étapes) jusqu'à ${fTime(plan.end)}.</p>`;
+  html += plan.options.slice(0, 6).map(o => `<button class="opt" data-k="${o.K}" aria-pressed="${o === chosen}">
+      <b>${o.K} ordre${o.K > 1 ? 's' : ''}</b><span class="gap ${gapCls(o.gap)}">${fNm(o.gap)}</span></button>`).join('');
+  html += `<div class="todo-head" style="margin-top:18px"><b>À programmer dans VR</b><a class="btn solid" href="${VR_INTENT}">Ouvrir VR</a></div>`;
+  html += chosen.orders.map((o, i) => {
+    const k = 'S:' + route.name + ':' + o.t + ':' + o.twa, isDone = !!done[k];
+    const tags = [];
+    if(o.now) tags.push(`<span class="tag man">Maintenant</span>`);
+    if(o.manoeuvre) tags.push(`<span class="tag man">${o.manoeuvre}</span>`);
+    if(o.sailChange) tags.push(`<span class="tag">${settings.autoSails ? 'Voile auto : ' : 'Voile : '}${esc(o.sail)}</span>`);
+    return `<button class="todo${isDone ? ' done' : ''}" data-sdone="${esc(k)}" aria-pressed="${isDone}">
+      <span class="box" aria-hidden="true">${isDone ? '✓' : ''}</span>
+      <span><span class="line"><span>${o.now ? fTime(now) : fTime(o.t)}</span><span class="${sideCls(o.twa)}">TWA ${fTwa(o.twa)}</span></span>
+      <span class="sub"><span class="hint">cap ≈ ${o.hdg}°</span>${tags.join('')}</span></span></button>`;
+  }).join('');
+  const back = plan.end - settings.lead * 60000;
+  html += `<div class="next-sess">Prochaine session<b>${fDay(back) !== fDay(now) ? fDay(back) + ' · ' : ''}${fTime(back)}</b>
+    <div class="actions">
+      <a class="btn solid" href="${alarmIntent(back, 'VR : prochaine session')}">Mettre un réveil</a>
+      <a class="btn" href="${sessCal(back)}" target="_blank" rel="noopener">Rappel agenda</a>
+    </div></div></section>`;
+  return html;
 }
 
 function renderSaisie(orders, now){
@@ -362,6 +485,9 @@ function toast(msg){ const t = document.getElementById('toast'); t.textContent =
 
 app.addEventListener('click', async e => {
   const el = e.target.closest('button'); if(!el) return;
+  if(el.dataset.away){ settings.away = +el.dataset.away; sessK = null; store.set('quart:settings', settings); render(); return; }
+  if(el.dataset.k){ sessK = +el.dataset.k; render(); return; }
+  if(el.dataset.sdone){ const k = el.dataset.sdone; if(done[k]) delete done[k]; else done[k] = 1; store.set('quart:done', done); render(); return; }
   if(el.dataset.view){ settings.view = el.dataset.view; store.set('quart:settings', settings); render(); return; }
   if(el.dataset.done != null){ const o = currentOrders()[+el.dataset.done], k = doneKey(o);
     if(done[k]) delete done[k]; else done[k] = 1; store.set('quart:done', done); render(); return; }
@@ -377,6 +503,7 @@ app.addEventListener('click', async e => {
   else if(el.id === 'clear'){ if(confirm('Effacer la route chargée ?')){ route = null; try{ localStorage.removeItem('quart:route'); }catch(err){} render(); } }
 });
 app.addEventListener('change', e => {
+  if(e.target.id === 'autoSails'){ settings.autoSails = e.target.checked; sessK = null; store.set('quart:settings', settings); render(); return; }
   if(e.target.id === 'lead'){ settings.lead = +e.target.value; store.set('quart:settings', settings); render(); }
 });
 
